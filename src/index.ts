@@ -661,6 +661,47 @@ class PocketBaseServer {
             required: ['collectionIdOrName'],
           },
         },
+        {
+          name: 'get_settings',
+          description: 'Get PocketBase application settings (admin only). Returns mail, S3, backups, and other server configuration.',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        {
+          name: 'update_settings',
+          description: 'Update PocketBase application settings (admin only). Use get_settings first to see current values, then pass only the fields you want to change.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              meta: {
+                type: 'object',
+                description: 'Application meta settings (appName, appURL, senderName, senderAddress)',
+              },
+              smtp: {
+                type: 'object',
+                description: 'SMTP mail settings (enabled, host, port, username, password, tls, authMethod, localName)',
+              },
+              s3: {
+                type: 'object',
+                description: 'S3 file storage settings (enabled, bucket, region, endpoint, accessKey, secret)',
+              },
+              backups: {
+                type: 'object',
+                description: 'Backup settings (s3, cronSchedule, cronMaxKeep)',
+              },
+            },
+          },
+        },
+        {
+          name: 'health_check',
+          description: 'Check PocketBase server health. Returns server status and version info.',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+          },
+        },
       ],
     }));
 
@@ -691,6 +732,12 @@ class PocketBaseServer {
             return await this.listCollections(request.params.arguments);
           case 'delete_collection':
             return await this.deleteCollection(request.params.arguments);
+          case 'get_settings':
+            return await this.getSettings();
+          case 'update_settings':
+            return await this.updateSettings(request.params.arguments);
+          case 'health_check':
+            return await this.healthCheck();
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
@@ -1034,6 +1081,69 @@ class PocketBaseServer {
         ErrorCode.InternalError,
         `Failed to delete collection: ${pocketbaseErrorMessage(error)}`
       );
+    }
+  }
+
+  private async getSettings() {
+    try {
+      await this.pb.collection("_superusers").authWithPassword(
+        process.env.POCKETBASE_ADMIN_EMAIL ?? '',
+        process.env.POCKETBASE_ADMIN_PASSWORD ?? ''
+      );
+      const settings = await this.pb.settings.getAll();
+      return {
+        content: [{ type: 'text', text: JSON.stringify(settings, null, 2) }],
+      };
+    } catch (error: unknown) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to get settings: ${pocketbaseErrorMessage(error)}`
+      );
+    }
+  }
+
+  private async updateSettings(args: any) {
+    try {
+      await this.pb.collection("_superusers").authWithPassword(
+        process.env.POCKETBASE_ADMIN_EMAIL ?? '',
+        process.env.POCKETBASE_ADMIN_PASSWORD ?? ''
+      );
+      const result = await this.pb.settings.update(args);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      };
+    } catch (error: unknown) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to update settings: ${pocketbaseErrorMessage(error)}`
+      );
+    }
+  }
+
+  private async healthCheck() {
+    try {
+      const health = await this.pb.health.check();
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            status: 'healthy',
+            ...health,
+            url: this.pb.baseURL,
+          }, null, 2),
+        }],
+      };
+    } catch (error: unknown) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            status: 'unhealthy',
+            error: pocketbaseErrorMessage(error),
+            url: this.pb.baseURL,
+          }, null, 2),
+        }],
+      };
     }
   }
 
