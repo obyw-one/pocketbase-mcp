@@ -10,7 +10,10 @@
     "build:tsc": "tsc",
     "prestart": "npm run build",
     "start": "node build/index.js",
-    "dev": "tsc -w"
+    "dev": "tsc -w",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:live": "vitest run --reporter=verbose"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.6.1",
@@ -20,6 +23,7 @@
     "@types/node": "^24.0.15",
     "dotenv": "^17.2.0",
     "esbuild": "^0.27.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.4"
   }
 }
